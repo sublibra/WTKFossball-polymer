@@ -1,0 +1,79 @@
+<link rel="import" href="../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../bower_components/neon-animation/web-animations.html">
+<link rel="import" href="../bower_components/paper-dropdown-menu/paper-dropdown-menu.html">
+<link rel="import" href="../bower_components/neon-animation/neon-animations.html">
+<link rel="import" href="../bower_components/paper-listbox/paper-listbox.html">
+<link rel="import" href="../bower_components/paper-item/paper-item.html">
+<link rel="import" href="../bower_components/iron-ajax/iron-ajax.html">
+
+<dom-module id="user-picker">
+
+    <template>
+        <style include="shared-styles">
+            paper-dropdown-menu {
+              width: 100px;
+              margin-right: 20px;
+          
+          }
+        </style>
+
+        <iron-ajax
+        auto
+        url="src/players.json"
+        handle-as="json"
+        on-response="_handleResponse"></iron-ajax>
+
+    <paper-dropdown-menu id="menu" label="[[label]]" on-iron-select="_itemSelected">
+      <paper-listbox slot="dropdown-content" selected="{{selectedValue}}" class="dropdown-content">
+          <template is="dom-repeat" items="{{players}}">
+            <paper-item>[[item.name]]</paper-item>
+        </template>
+    </paper-listbox>
+    </paper-dropdown-menu>
+
+    </template>
+
+    <script>
+        // Define the class for a new element called custom-element
+        class UserPicker extends Polymer.Element {
+                static get is() {
+                    return "user-picker";
+                }
+
+                static get properties() {
+                    return {
+                        label: {
+                            value: String
+                        },
+                        players: {
+                            type: Object
+                        },
+                        selectedValue: {
+                            type: String
+                        },
+                        selected: {
+                            type: String
+                        }
+
+                    }
+                }
+
+                _handleResponse(event) {
+                    this.players = event.detail.response.players;
+                }
+
+                _itemSelected(e) {
+                    var selectedItem = e.target.selectedItem;
+                    if (selectedItem) {
+                        this.selected = selectedItem.innerText
+                    };
+                }
+
+                constructor() {
+                    super();
+                }
+            }
+            // Register the new element with the browser
+        customElements.define(UserPicker.is, UserPicker);
+    </script>
+</dom-module>

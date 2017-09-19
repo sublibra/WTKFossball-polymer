@@ -1,0 +1,168 @@
+<!--
+@license
+Copyright (c) 2016 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
+
+<link rel="import" href="../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../bower_components/paper-toast/paper-toast.html">
+<link rel="import" href="../bower_components/paper-slider/paper-slider.html">
+<link rel="import" href="../bower_components/paper-button/paper-button.html">
+<link rel="import" href="../bower_components/google-signin/google-signin.html">
+<link rel="import" href="../bower_components/app-storage/app-localstorage/app-localstorage-document.html">
+<link rel="import" href="../bower_components/iron-ajax/iron-ajax.html">
+
+<link rel="import" href="user-picker.html">
+<link rel="import" href="shared-styles.html">
+
+<dom-module id="my-submit">
+    <template>
+    <style include="shared-styles">
+      :host {
+        display: block;
+
+        padding: 10px;
+      }
+    </style>
+    <app-localstorage-document key="storage-sheet" data="{{storageSheet}}"></app-localstorage-document>
+
+    <!-- 
+        Load application specific secrets (generated from https://console.developers.google.com/apis/credentials)
+     -->
+    <iron-ajax auto url="src/client_secret.json" handle-as="json" on-response="_initGoogleApi"></iron-ajax>
+    <div id="data" class="card">
+        <h1>Submit new score</h1>
+        <h3>Team 1 (winners)</h3>
+        <user-picker id="player1" label="Player1"></user-picker>
+        <user-picker id="player2" label="Player2"></user-picker>
+        <h3>Team 2</h3>
+        <user-picker id="player3" label="Player3"></user-picker>
+        <user-picker id="player4" label="Player4"></user-picker>
+        <paper-slider id="score" value="5" editable max=9></paper-slider>
+        <p>
+            <paper-button raised id="authorizeButton" class="display: none;" on-click="_handleAuthClick">Authorize</paper-button>
+            <paper-button raised id="signoutButton" class="display: none;" on-click="_handleSignoutClick">Sign Out</paper-button>  
+            <paper-button raised on-click="_submit">Submit</paper-button>
+        </p>
+      </div>
+      <paper-toast id="toast" text="Toast message"></paper-toast>
+
+    </div>
+  </template>
+
+    <script>
+        class MySubmit extends Polymer.Element {
+
+            static get is() {
+                return 'my-submit';
+            }
+
+            /**
+             *  Called when the signed in status changes, to update the UI
+             *  appropriately. After a sign-in, the API is called.
+             */
+            _updateSigninStatus(isSignedIn) {
+                if (isSignedIn) {
+                    this.$.authorizeButton.style.display = 'none';
+                    this.$.signoutButton.style.display = '';
+
+                } else {
+                    this.$.authorizeButton.style.display = '';
+                    this.$.signoutButton.style.display = 'none';
+                }
+            }
+
+            /**
+             *  Sign in the user upon button click.
+             */
+            _handleAuthClick(event) {
+                gapi.auth2.getAuthInstance().signIn();
+            }
+
+            /**
+             *  Sign out the user upon button click.
+             */
+            _handleSignoutClick(event) {
+                gapi.auth2.getAuthInstance().signOut();
+            }
+
+            ready() {
+                super.ready();
+            }
+
+            postToDrive(data) {
+                console.log(this.storageSheet);
+                return new Promise((resolve, reject) => {
+                    var params = {
+                        spreadsheetId: this.storageSheet,
+                        range: 'A1',
+                        valueInputOption: 'RAW',
+                        insertDataOption: 'INSERT_ROWS',
+                    };
+
+                    var valueRangeBody = {
+                        "majorDimension": "ROWS",
+                        "values": [data]
+                    };
+
+                    var request = gapi.client.sheets.spreadsheets.values.append(params, valueRangeBody);
+                    request.then(function(response) {
+                        resolve(response.result);
+                    }, function(reason) {
+                        reject('error: ' + reason.result.error.message);
+                    });
+                });
+            }
+
+            _submit(event) {
+
+                // TODO: Fix validation
+                let values = [
+                    new Date().toISOString().substring(0, 10),
+                    this.$.player1.selected,
+                    this.$.player2.selected,
+                    this.$.player3.selected,
+                    this.$.player4.selected,
+                    10,
+                    this.$.score.value
+                ]
+                console.log(values);
+                this.$.toast.fitInto = this.$.data;
+                this.postToDrive(values).then((res) => {
+                    this.$.toast.text = "Score added on: " + res.updates.updatedRange;
+                    console.log(res);
+                    this.$.toast.open();
+                }).catch((reason) => {
+                    this.$.toast.text = "Error: " + JSON.stringify(reason);
+                    console.error(reason);
+                    this.$.toast.open();
+
+                });
+            }
+
+            _initGoogleApi(event) {
+                this.secret = event.detail.response;
+                gapi.load('client:auth2', () => {
+                    gapi.client.init({
+                        'clientId': this.secret.client_id,
+                        'scope': 'https://www.googleapis.com/auth/spreadsheets',
+                        'discoveryDocs': ['https://sheets.googleapis.com/$discovery/rest?version=v4']
+                    }).then(() => {
+                        gapi.auth2.getAuthInstance().isSignedIn.listen(this._updateSigninStatus.bind(this));
+
+                        // Handle the initial sign-in state.
+                        this._updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
+                    })
+                });
+
+            }
+
+        }
+
+        window.customElements.define(MySubmit.is, MySubmit);
+    </script>
+</dom-module>
